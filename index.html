@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Science Bowl Buzzer</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg:        #0d0f14;
+      --surface:   #13161e;
+      --border:    #1f2433;
+      --accent:    #e8ff47;
+      --danger:    #ff4757;
+      --team-a:    #3ecfff;
+      --team-b:    #ff7043;
+      --text:      #eef0f7;
+      --muted:     #555d7a;
+      --buzz-glow: 0 0 60px rgba(232,255,71,0.35), 0 0 120px rgba(232,255,71,0.15);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr auto auto;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+      pointer-events: none;
+      z-index: 999;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 2rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    header h1 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.6rem;
+      letter-spacing: 0.12em;
+      color: var(--accent);
+    }
+    #conn-status {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--muted);
+    }
+    #conn-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: background 0.3s;
+    }
+    #conn-dot.connected    { background: #2ecc71; box-shadow: 0 0 6px #2ecc71; }
+    #conn-dot.disconnected { background: var(--danger); }
+
+    /* Main grid */
+    main {
+      display: grid;
+      grid-template-columns: 1fr 1.5fr 1fr;
+      gap: 1.5rem;
+      padding: 1.5rem 2rem;
+      align-items: start;
+    }
+
+    /* Cards */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+    }
+    .card-label {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 0.85rem;
+      letter-spacing: 0.18em;
+      color: var(--muted);
+      margin-bottom: 1rem;
+    }
+
+    /* Score cards */
+    .score-card { text-align: center; }
+    .score-card.team-a { border-top: 3px solid var(--team-a); }
+    .score-card.team-b { border-top: 3px solid var(--team-b); }
+
+    .team-name {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.8rem;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.25rem;
+    }
+    .team-a .team-name { color: var(--team-a); }
+    .team-b .team-name { color: var(--team-b); }
+
+    .score-display {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 5.5rem;
+      line-height: 1;
+      margin: 0.5rem 0 1rem;
+      transition: transform 0.15s ease;
+    }
+    .score-display.bump { transform: scale(1.12); }
+
+    .score-btns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .btn {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.8rem;
+      font-weight: 700;
+      padding: 0.55rem 0.5rem;
+      border-radius: 7px;
+      border: none;
+      cursor: pointer;
+      letter-spacing: 0.04em;
+      transition: filter 0.15s, transform 0.1s;
+    }
+    .btn:active { transform: scale(0.95); }
+    .btn:hover  { filter: brightness(1.2); }
+
+    .btn-add-toss  { background: rgba(62,207,255,0.15); color: var(--team-a); border: 1px solid rgba(62,207,255,0.3); }
+    .btn-add-bonus { background: rgba(62,207,255,0.25); color: var(--team-a); border: 1px solid rgba(62,207,255,0.4); }
+    .btn-blurt     { background: rgba(255,71,87,0.1);   color: var(--danger); border: 1px solid rgba(255,71,87,0.35); grid-column: 1 / -1; }
+
+    .team-b .btn-add-toss  { background: rgba(255,112,67,0.15); color: var(--team-b); border-color: rgba(255,112,67,0.3); }
+    .team-b .btn-add-bonus { background: rgba(255,112,67,0.25); color: var(--team-b); border-color: rgba(255,112,67,0.4); }
+
+    .score-undo {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.72rem;
+      width: 100%;
+      margin-top: 0.25rem;
+    }
+
+    /* Center panel */
+    .center-panel { display: flex; flex-direction: column; gap: 1.25rem; }
+
+    /* Buzzer */
+    #buzz-display {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 2rem 1.5rem;
+      text-align: center;
+      transition: border-color 0.3s, box-shadow 0.3s;
+      min-height: 140px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+    #buzz-display.buzzed { border-color: var(--accent); box-shadow: var(--buzz-glow); }
+    #buzz-label {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 0.85rem;
+      letter-spacing: 0.2em;
+      color: var(--muted);
+    }
+    #buzz-text {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2.8rem;
+      letter-spacing: 0.05em;
+      color: var(--text);
+      transition: color 0.3s;
+    }
+    #buzz-display.buzzed #buzz-text { color: var(--accent); }
+    #buzz-player-tag {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--muted);
+      min-height: 1em;
+    }
+    .btn-reset-buzz {
+      background: var(--danger);
+      color: white;
+      font-size: 0.9rem;
+      padding: 0.7rem 2rem;
+      border-radius: 8px;
+      width: 100%;
+      letter-spacing: 0.06em;
+    }
+
+    /* Half timer */
+    .half-timer-display {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 4rem;
+      text-align: center;
+      letter-spacing: 0.05em;
+      color: var(--text);
+      margin: 0.5rem 0 1rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .half-timer-display.warning { color: #ffaa00; }
+    .half-timer-display.danger  { color: var(--danger); animation: pulse 0.8s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+    .timer-controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+    .btn-start  { background: #2ecc71; color: #0d0f14; }
+    .btn-pause  { background: #f39c12; color: #0d0f14; }
+    .btn-treset { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+
+    .half-input-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .half-input-row input {
+      width: 52px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.85rem;
+      padding: 0.3rem 0.5rem;
+      text-align: center;
+    }
+
+    /* Question Timer */
+    #qtimer-display {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 5rem;
+      text-align: center;
+      letter-spacing: 0.05em;
+      color: var(--text);
+      margin: 0.5rem 0 0.75rem;
+      font-variant-numeric: tabular-nums;
+    }
+    #qtimer-display.warning { color: #ffaa00; }
+    #qtimer-display.danger  { color: var(--danger); animation: pulse 0.8s infinite; }
+
+    .qtimer-presets {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0.5rem;
+    }
+    .btn-tossup { background: rgba(232,255,71,0.12); color: var(--accent); border: 1px solid rgba(232,255,71,0.25); }
+    .btn-bonus  { background: rgba(46,204,113,0.12); color: #2ecc71;      border: 1px solid rgba(46,204,113,0.25); }
+    .btn-qclear { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+
+    #qtimer-bar-wrap {
+      width: 100%; height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      margin-bottom: 0.75rem;
+      overflow: hidden;
+    }
+    #qtimer-bar {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 2px;
+      transition: width 0.25s linear, background 0.3s;
+    }
+
+    /* Event Log */
+    #log-section {
+      background: var(--bg);
+      border-top: 1px solid var(--border);
+      padding: 0.85rem 2rem 1.1rem;
+    }
+    #log-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
+    }
+    #log-header span {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 0.85rem;
+      letter-spacing: 0.18em;
+      color: var(--muted);
+    }
+    #log-clear {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.7rem;
+      padding: 0.2rem 0.65rem;
+      border-radius: 5px;
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 600;
+    }
+    #log-clear:hover { color: var(--text); border-color: var(--muted); }
+
+    #log-entries {
+      display: flex;
+      flex-direction: column;
+      gap: 0.28rem;
+      max-height: 150px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+    #log-empty {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--muted);
+      padding: 0.4rem 0;
+    }
+    .log-entry {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.72rem;
+      display: flex;
+      align-items: baseline;
+      gap: 0.75rem;
+      padding: 0.3rem 0.65rem;
+      border-radius: 5px;
+      background: var(--surface);
+      border-left: 3px solid var(--border);
+      animation: logSlide 0.18s ease;
+    }
+    @keyframes logSlide {
+      from { opacity: 0; transform: translateY(-3px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .log-entry.type-buzz  { border-left-color: var(--accent); }
+    .log-entry.type-a     { border-left-color: var(--team-a); }
+    .log-entry.type-b     { border-left-color: var(--team-b); }
+    .log-entry.type-blurt { border-left-color: var(--danger); }
+    .log-entry.type-reset { border-left-color: var(--muted); }
+    .log-entry.type-undo  { border-left-color: #f39c12; }
+    .log-entry.type-timer { border-left-color: #2ecc71; }
+    .log-time { color: var(--muted); flex-shrink: 0; }
+    .log-msg  { color: var(--text); }
+
+    /* Footer */
+    footer {
+      padding: 0.75rem 2rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--surface);
+    }
+    .btn-reset-all {
+      background: transparent;
+      border: 1px solid var(--danger);
+      color: var(--danger);
+      font-size: 0.8rem;
+      padding: 0.45rem 1.2rem;
+      border-radius: 6px;
+    }
+    .footer-note {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--muted);
+    }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; }
+      .score-card.team-b { order: 3; }
+    }
+
+    /* Flash overlay */
+    #flash {
+      position: fixed; inset: 0;
+      background: rgba(232,255,71,0.06);
+      pointer-events: none;
+      opacity: 0; z-index: 998;
+      transition: opacity 0.15s;
+    }
+    #flash.show { opacity: 1; }
+  </style>
+</head>
+<body>
+
+<div id="flash"></div>
+
+<header>
+  <h1>Science Bowl</h1>
+  <div id="conn-status">
+    <div id="conn-dot" class="disconnected"></div>
+    <span id="conn-label">Connecting…</span>
+  </div>
+</header>
+
+<main>
+  <!-- Team A -->
+  <div class="card score-card team-a">
+    <div class="card-label">Team A</div>
+    <div class="team-name">Team A</div>
+    <div class="score-display" id="score-a">0</div>
+    <div class="score-btns">
+      <button class="btn btn-add-toss"  onclick="changeScore('a', +4,  'Tossup')">+4 Tossup</button>
+      <button class="btn btn-add-bonus" onclick="changeScore('a', +10, 'Bonus')">+10 Bonus</button>
+      <button class="btn btn-blurt"     onclick="changeScore('a', -4,  'Blurt')">Blurt −4</button>
+    </div>
+    <button class="btn score-undo" onclick="undoScore('a')">↩ Undo</button>
+  </div>
+
+  <!-- Center -->
+  <div class="center-panel">
+
+    <div id="buzz-display">
+      <div id="buzz-label">BUZZER</div>
+      <div id="buzz-text">Waiting…</div>
+      <div id="buzz-player-tag"></div>
+    </div>
+    <button class="btn btn-reset-buzz" onclick="sendReset()">🔄 Reset Buzzer</button>
+
+    <!-- Half Timer -->
+    <div class="card">
+      <div class="card-label">Half Timer</div>
+      <div class="half-timer-display" id="half-display">10:00</div>
+      <div class="timer-controls">
+        <button class="btn btn-start"  onclick="halfStart()">▶ Start</button>
+        <button class="btn btn-pause"  onclick="halfPause()">⏸ Pause</button>
+        <button class="btn btn-treset" onclick="halfReset()">↺ Reset</button>
+      </div>
+      <div class="half-input-row">
+        <span>Duration:</span>
+        <input id="half-mins" type="number" value="10" min="1" max="99" onchange="halfReset()"/>
+        <span>min</span>
+      </div>
+    </div>
+
+    <!-- Question Timer -->
+    <div class="card">
+      <div class="card-label">Question Timer</div>
+      <div id="qtimer-display">—</div>
+      <div id="qtimer-bar-wrap"><div id="qtimer-bar" style="width:100%"></div></div>
+      <div class="qtimer-presets">
+        <button class="btn btn-tossup" onclick="qStart(5)">Tossup 5s</button>
+        <button class="btn btn-bonus"  onclick="qStart(20)">Bonus 20s</button>
+        <button class="btn btn-qclear" onclick="qClear()">Clear</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Team B -->
+  <div class="card score-card team-b">
+    <div class="card-label">Team B</div>
+    <div class="team-name">Team B</div>
+    <div class="score-display" id="score-b">0</div>
+    <div class="score-btns">
+      <button class="btn btn-add-toss"  onclick="changeScore('b', +4,  'Tossup')">+4 Tossup</button>
+      <button class="btn btn-add-bonus" onclick="changeScore('b', +10, 'Bonus')">+10 Bonus</button>
+      <button class="btn btn-blurt"     onclick="changeScore('b', -4,  'Blurt')">Blurt −4</button>
+    </div>
+    <button class="btn score-undo" onclick="undoScore('b')">↩ Undo</button>
+  </div>
+</main>
+
+<!-- Event Log -->
+<section id="log-section">
+  <div id="log-header">
+    <span>Event Log</span>
+    <button id="log-clear" onclick="clearLog()">Clear</button>
+  </div>
+  <div id="log-entries">
+    <div id="log-empty">No events yet.</div>
+  </div>
+</section>
+
+<footer>
+  <button class="btn btn-reset-all" onclick="resetAll()">⚠ Reset Everything</button>
+  <div class="footer-note">Tossup: 4pts · Bonus: 10pts · Blurt: −4pts</div>
+</footer>
+
+<script>
+  // ── Helpers ───────────────────────────────────────────────
+  function timestamp() {
+    const d = new Date();
+    return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+  }
+
+  // ── Event Log ─────────────────────────────────────────────
+  function addLog(msg, type = '') {
+    const container = document.getElementById('log-entries');
+    const empty = document.getElementById('log-empty');
+    if (empty) empty.remove();
+
+    const entry = document.createElement('div');
+    entry.className = `log-entry${type ? ' type-' + type : ''}`;
+    entry.innerHTML = `<span class="log-time">${timestamp()}</span><span class="log-msg">${msg}</span>`;
+    container.prepend(entry);
+  }
+
+  function clearLog() {
+    document.getElementById('log-entries').innerHTML = '<div id="log-empty">No events yet.</div>';
+  }
+
+  // ── WebSocket ─────────────────────────────────────────────
+  const SERVER = "ws://192.168.1.15:3000";
+  let ws, wsReady = false;
+
+  function connectWS() {
+    ws = new WebSocket(SERVER);
+
+    ws.onopen = () => {
+      wsReady = true;
+      document.getElementById("conn-dot").className = "connected";
+      document.getElementById("conn-label").textContent = "Connected";
+      addLog("WebSocket connected to server.", "timer");
+    };
+
+    ws.onclose = () => {
+      wsReady = false;
+      document.getElementById("conn-dot").className = "disconnected";
+      document.getElementById("conn-label").textContent = "Disconnected — retrying…";
+      addLog("WebSocket disconnected. Retrying in 4s…", "reset");
+      setTimeout(connectWS, 4000);
+    };
+
+    ws.onerror = () => ws.close();
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === "buzz") {
+        setBuzzed(data.player);
+      } else if (data.type === "reset") {
+        clearBuzz();
+      } else if (data.type === "status") {
+        if (data.buzzed) setBuzzed(data.firstPlayer);
+        else clearBuzz();
+      }
+    };
+  }
+
+  function sendReset() {
+    if (wsReady) ws.send(JSON.stringify({ type: "reset" }));
+    clearBuzz();
+  }
+
+  connectWS();
+
+  // ── Buzzer display ────────────────────────────────────────
+  function setBuzzed(player) {
+    document.getElementById("buzz-text").textContent = `Player ${player} Buzzed!`;
+    document.getElementById("buzz-player-tag").textContent = `ESP32 · Player ${player}`;
+    document.getElementById("buzz-display").classList.add("buzzed");
+    flashScreen();
+    qPause();
+    addLog(`🔔 Player ${player} buzzed in!`, "buzz");
+  }
+
+  function clearBuzz() {
+    document.getElementById("buzz-text").textContent = "Waiting…";
+    document.getElementById("buzz-player-tag").textContent = "";
+    document.getElementById("buzz-display").classList.remove("buzzed");
+    addLog("Buzzer reset.", "reset");
+  }
+
+  // Silent version used when score buttons auto-reset buzzer
+  function clearBuzzSilent() {
+    document.getElementById('buzz-text').textContent = 'Waiting…';
+    document.getElementById('buzz-player-tag').textContent = '';
+    document.getElementById('buzz-display').classList.remove('buzzed');
+  }
+
+  function flashScreen() {
+    const f = document.getElementById("flash");
+    f.classList.add("show");
+    setTimeout(() => f.classList.remove("show"), 250);
+  }
+
+  // ── Scoreboard ────────────────────────────────────────────
+  const scores       = { a: 0, b: 0 };
+  const scoreHistory = { a: [], b: [] };
+  const teamLabel    = { a: "Team A", b: "Team B" };
+
+  function changeScore(team, delta, reason) {
+    scoreHistory[team].push(scores[team]);
+    const prev = scores[team];
+    scores[team] = Math.max(0, scores[team] + delta);
+
+    const el = document.getElementById(`score-${team}`);
+    el.textContent = scores[team];
+    el.classList.remove("bump");
+    void el.offsetWidth;
+    el.classList.add("bump");
+    setTimeout(() => el.classList.remove("bump"), 200);
+
+    const sign    = delta > 0 ? "+" : "";
+    const isBlurt = reason === 'Blurt';
+    const logType = isBlurt ? 'blurt' : team;
+    const icon    = isBlurt ? '[-4]' : (delta > 0 ? '[+]' : '[-]');
+    addLog(`${icon} ${teamLabel[team]} — ${reason}: ${sign}${delta} (${prev} → ${scores[team]})`, logType);
+
+    // Auto-reset buzzer on any score action
+    if (wsReady) ws.send(JSON.stringify({ type: 'reset' }));
+    clearBuzzSilent();
+  }
+
+  function undoScore(team) {
+    if (scoreHistory[team].length === 0) return;
+    const prev = scores[team];
+    scores[team] = scoreHistory[team].pop();
+    document.getElementById(`score-${team}`).textContent = scores[team];
+    addLog(`↩ ${teamLabel[team]} — Undo (${prev} → ${scores[team]})`, "undo");
+  }
+
+  // ── Half Timer ────────────────────────────────────────────
+  let halfInterval  = null;
+  let halfRemaining = 0;
+
+  function halfMins() { return parseInt(document.getElementById("half-mins").value) || 10; }
+
+  function halfReset() {
+    clearInterval(halfInterval);
+    halfInterval  = null;
+    halfRemaining = halfMins() * 60;
+    renderHalf();
+  }
+
+  function halfStart() {
+    if (halfInterval) return;
+    if (halfRemaining <= 0) halfReset();
+    addLog(`▶ Half timer started (${halfMins()} min).`, "timer");
+    halfInterval = setInterval(() => {
+      halfRemaining--;
+      renderHalf();
+      if (halfRemaining <= 0) {
+        clearInterval(halfInterval);
+        halfInterval = null;
+        addLog("⏰ Half timer expired!", "blurt");
+      }
+    }, 1000);
+  }
+
+  function halfPause() {
+    if (!halfInterval) return;
+    clearInterval(halfInterval);
+    halfInterval = null;
+    addLog("⏸ Half timer paused.", "reset");
+  }
+
+  function renderHalf() {
+    const m  = Math.floor(halfRemaining / 60);
+    const s  = halfRemaining % 60;
+    const el = document.getElementById("half-display");
+    el.textContent = `${m}:${String(s).padStart(2, "0")}`;
+    el.className   = "half-timer-display";
+    if (halfRemaining <= 60) el.classList.add("warning");
+    if (halfRemaining <= 10) { el.classList.remove("warning"); el.classList.add("danger"); }
+  }
+
+  halfReset();
+
+  // ── Question Timer ────────────────────────────────────────
+  let qInterval  = null;
+  let qTotal     = 0;
+  let qRemaining = 0;
+
+  function qStart(seconds) {
+    qClear();
+    qTotal     = seconds;
+    qRemaining = seconds;
+    renderQ();
+    const label = seconds === 5 ? "Tossup" : seconds === 20 ? "Bonus" : `${seconds}s`;
+    addLog(`▶ Question timer: ${label} (${seconds}s).`, "timer");
+    qInterval = setInterval(() => {
+      qRemaining--;
+      renderQ();
+      if (qRemaining <= 0) {
+        clearInterval(qInterval);
+        qInterval = null;
+        addLog("⏰ Question timer expired!", "blurt");
+      }
+    }, 1000);
+  }
+
+  function qPause() {
+    clearInterval(qInterval);
+    qInterval = null;
+  }
+
+  function qClear() {
+    clearInterval(qInterval);
+    qInterval = null; qTotal = 0; qRemaining = 0;
+    document.getElementById("qtimer-display").textContent  = "—";
+    document.getElementById("qtimer-display").className    = "";
+    document.getElementById("qtimer-bar").style.width      = "100%";
+    document.getElementById("qtimer-bar").style.background = "var(--accent)";
+  }
+
+  function renderQ() {
+    const el  = document.getElementById("qtimer-display");
+    const bar = document.getElementById("qtimer-bar");
+    el.textContent = qRemaining;
+    el.className   = "";
+    const pct = qTotal > 0 ? (qRemaining / qTotal) * 100 : 100;
+    bar.style.width = pct + "%";
+    if (qRemaining <= Math.ceil(qTotal * 0.4)) { el.classList.add("warning"); bar.style.background = "#ffaa00"; }
+    if (qRemaining <= Math.ceil(qTotal * 0.2)) { el.classList.remove("warning"); el.classList.add("danger"); bar.style.background = "var(--danger)"; }
+  }
+
+  // ── Reset Everything ──────────────────────────────────────
+  function resetAll() {
+    if (!confirm("Reset scores, timers, and buzzer?")) return;
+    scores.a = 0; scores.b = 0;
+    scoreHistory.a = []; scoreHistory.b = [];
+    document.getElementById("score-a").textContent = 0;
+    document.getElementById("score-b").textContent = 0;
+    halfReset();
+    qClear();
+    sendReset();
+    addLog("⚠ Full reset performed.", "reset");
+  }
+</script>
+</body>
+</html>
