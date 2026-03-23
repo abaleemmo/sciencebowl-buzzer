@@ -34,7 +34,8 @@ Each team has a physical buzzer unit (an ESP32 with a button and an LED). When a
 - 1× ESP32 development board per buzzer (tested on standard ESP32-WROOM)
 - 1× momentary push button per buzzer (wired to GPIO 4)
 - 1× LED per buzzer (wired to GPIO 12, active LOW)
-- A computer or Raspberry Pi to run the Node.js server
+- 1x 220 Ohm resistor per buzzer
+- A computer to run the Node.js server
 - All devices on the same local WiFi network
 
 ---
