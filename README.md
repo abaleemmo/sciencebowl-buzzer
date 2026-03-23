@@ -1,7 +1,8 @@
-# ⚡ Science Bowl Buzzer
+# Science Bowl Buzzer
 
 A hardware + software buzzer system for practicing [National Science Bowl](https://science.energy.gov/wdts/nsb/), built with ESP32 microcontrollers and a Node.js WebSocket server. Features a polished web frontend with a live scoreboard, match timer, question timer, and full event log.
 
+Made for the goat Mr. Bullington, because these buzzer systems are way too expensive for no reason.
 ---
 
 ## How It Works
